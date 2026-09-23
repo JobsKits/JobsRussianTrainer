@@ -1,0 +1,1 @@
+dist/Darwin-arm64-20260923-223847-974522/JobsRussianTrainer.app
