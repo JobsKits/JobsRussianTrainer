@@ -13,7 +13,8 @@
 ## 一、使用方法
 
 - 点击格子：朗读辅音与元音的组合；快速点击新格会取消上一项。
-- 空格 / 回车：重听当前格。方向键：移动选择。Esc：停止。
+- 点击顶部元音或左侧辅音：单独朗读对应字母，共 31 个字母入口；同样支持语速、重复与音量设置。系统可能使用字母名称朗读，辅音字母名称不等同于纯辅音音素。
+- 空格 / 回车：重听当前字母或组合。方向键：移动选择。Esc：停止。
 - 语速支持慢速、稍慢、正常；重复支持 1–3 次；支持音量、整行连读和随机练习。
 - 顶部显示当前组合与软硬音提示；语音、音量和语速在关闭窗口时保存到系统用户设置。
 - 白色为通常配硬音，浅蓝为通常配软音，浅黄加点为少见／非典型拼写。ж、ш、ц 通常恒硬，й、ч、щ 通常恒软。随机练习避开少见组合。
@@ -77,7 +78,7 @@ python3 -m compileall -q src scripts tests
 
 Windows 测试先执行 `set PYTHONPATH=src`，再使用 `py -3 -m unittest discover -s tests -v`。Windows 产物需在 Windows 上实际构建并验证声音，不能以 macOS 检查代替。
 
-验证基线：Python 3.14.7、PySide6 6.11.2、PyInstaller 6.22.3、macOS arm64。7 项自动测试通过，覆盖 210 格映射、快速点击、停止、重复、错误和无声音场景；已检查窗口截图并实测 Milena 顺序朗读及快速切换。Mac `.app` / `.dmg` 已实际构建；独立成品通过真实窗口及 `ба → ми → шу` 播放冒烟检查。构建器显式收集 Qt 窗口和语音插件，兼容 Homebrew 的非 wheel 目录布局。Mac 脚本通过 `zsh -n`，Windows 脚本仅完成静态检查。
+验证基线：Python 3.14.7、PySide6 6.11.2、PyInstaller 6.22.3、macOS arm64。9 项自动测试通过，覆盖 210 格映射、31 个单字母入口、表头鼠标点击、重听目标切换、快速点击、停止、重复、错误和无声音场景；已检查窗口截图并实测 Milena 顺序朗读及快速切换。Mac `.app` / `.dmg` 已实际构建；独立成品通过真实窗口及 `а → б → ба` 单字母与组合播放冒烟检查。构建器显式收集 Qt 窗口和语音插件，兼容 Homebrew 的非 wheel 目录布局。Mac 脚本通过 `zsh -n`，Windows 脚本仅完成静态检查。
 
 参考：[康奈尔大学俄语字母与发音](https://russian.cornell.edu/russian.web/courses/305/letters_sounds_1.htm)、[俄语学习平台语音说明](https://russky.info/grammar/phonetics?hl=en)、[Qt 系统语音引擎](https://doc.qt.io/qt-6.5/qttexttospeech-engines.html)。
 

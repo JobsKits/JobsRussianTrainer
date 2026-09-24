@@ -1,1 +1,1 @@
-dist/Darwin-arm64-20260923-223847-974522/JobsRussianTrainer.app
+dist/Darwin-arm64-20260924-151545-983931/JobsRussianTrainer.app

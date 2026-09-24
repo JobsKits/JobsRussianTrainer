@@ -43,6 +43,7 @@ class TrainerWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.settings = QSettings("Jobs", "RussianTrainer")
+        self.current_text = "ба"
         self.setWindowTitle("Jobs · 俄语拼读表")
         self.resize(1120, 860)
         self.setMinimumSize(820, 600)
@@ -63,7 +64,7 @@ class TrainerWindow(QMainWindow):
         self.help_button.clicked.connect(self.show_help)
         titlebar.addWidget(self.help_button)
         layout.addLayout(titlebar)
-        layout.addWidget(QLabel("РУССКИЙ  /  横向元音 × 纵向辅音 · 点一下，听一遍，再跟读", objectName="subtitle"))
+        layout.addWidget(QLabel("РУССКИЙ  /  点上方元音、左侧辅音或中间组合，即可朗读", objectName="subtitle"))
 
         self.card = QWidget(objectName="card")
         card_layout = QHBoxLayout(self.card)
@@ -121,6 +122,15 @@ class TrainerWindow(QMainWindow):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setMinimumSectionSize(57)
         self.table.verticalHeader().setDefaultSectionSize(43)
+        for header in (self.table.horizontalHeader(), self.table.verticalHeader()):
+            header.setSectionsClickable(True)
+            header.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
+        self.table.horizontalHeader().sectionClicked.connect(lambda col: self.play_letter(VOWELS[col]))
+        self.table.verticalHeader().sectionClicked.connect(lambda row: self.play_letter(CONSONANTS[row]))
+        for col, vowel in enumerate(VOWELS):
+            self.table.horizontalHeaderItem(col).setToolTip(f"点击朗读元音 {vowel}")
+        for row, consonant in enumerate(CONSONANTS):
+            self.table.verticalHeaderItem(row).setToolTip(f"点击朗读辅音字母 {consonant}")
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setFont(QFont("", 18))
@@ -168,15 +178,28 @@ class TrainerWindow(QMainWindow):
         if row < 0 or col < 0:
             return
         c, v = CONSONANTS[row], VOWELS[col]
+        self.current_text = c + v
         self.syllable.setText(c + v)
         self.formula.setText(f"{c} + {v}")
         self.hint.setText(note(c, v))
 
     def play_cell(self, row, col):
+        self.selection_changed(row, col)
         self.speaker.play([CONSONANTS[row] + VOWELS[col]], self.repeat_combo.currentIndex() + 1)
 
+    def show_letter(self, letter):
+        self.current_text = letter
+        self.table.clearSelection()
+        self.syllable.setText(letter)
+        self.formula.setText(("元音字母" if letter in VOWELS else "辅音字母") + f" · {letter.upper()} {letter}")
+        self.hint.setText("单字母试听 · 系统可能按字母名称朗读；辅音字母名称与纯辅音音素不同。")
+
+    def play_letter(self, letter):
+        self.show_letter(letter)
+        self.speaker.play([letter], self.repeat_combo.currentIndex() + 1)
+
     def replay(self):
-        self.play_cell(self.table.currentRow(), self.table.currentColumn())
+        self.speaker.play([self.current_text], self.repeat_combo.currentIndex() + 1)
 
     def play_row(self):
         consonant = CONSONANTS[self.table.currentRow()]
@@ -194,9 +217,14 @@ class TrainerWindow(QMainWindow):
         self.status.setText("已停止 · 点击格子重新播放")
 
     def on_started(self, syllable):
-        row, col = CONSONANTS.index(syllable[0]), VOWELS.index(syllable[1])
-        self.table.setCurrentCell(row, col)
-        self.table.scrollToItem(self.table.item(row, col))
+        if len(syllable) == 1:
+            self.show_letter(syllable)
+        else:
+            row, col = CONSONANTS.index(syllable[0]), VOWELS.index(syllable[1])
+            self.table.setCurrentCell(row, col)
+            self.table.item(row, col).setSelected(True)
+            self.selection_changed(row, col)
+            self.table.scrollToItem(self.table.item(row, col))
         self.status.setText(f"正在朗读：{syllable} · 跟着声音练习")
 
     def on_error(self, message):
@@ -218,6 +246,8 @@ class TrainerWindow(QMainWindow):
     def show_help(self):
         QMessageBox.information(self, "俄语声音与学习说明",
             "本应用离线调用系统俄语语音，不上传内容。\n\n"
+            "点击顶部元音或左侧辅音，可单独朗读字母；重复、语速和重听同样适用。"
+            "单字母可能按字母名称朗读，不等同于纯辅音音素。\n\n"
             "macOS：系统设置 → 辅助功能 → 朗读相关设置 → 系统声音，添加俄语 Milena。\n"
             "Windows：设置 → 时间和语言 → 语言和区域，添加俄语并安装语音组件；安装后重启应用。"
             "如果声音仍未列出，请检查系统语音设置中是否存在俄语声音。\n\n"

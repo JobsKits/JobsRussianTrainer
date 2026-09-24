@@ -4,7 +4,7 @@ import unittest
 import time
 from unittest.mock import patch
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, Qt, QPoint
 from PySide6.QtTest import QTest
 from PySide6.QtTextToSpeech import QTextToSpeech
 from PySide6.QtWidgets import QApplication
@@ -92,6 +92,49 @@ class PlaybackTests(unittest.TestCase):
 
 
 class TableTests(unittest.TestCase):
+    def test_headers_play_all_letters_and_replay_latest(self):
+        with patch("russian_trainer.app.russian_engine", return_value=(None, [])):
+            window = TrainerWindow()
+        window.repeat_combo.setCurrentIndex(2)
+        with patch.object(window.speaker, "play") as play:
+            for header, letters in [(window.table.horizontalHeader(), VOWELS),
+                                    (window.table.verticalHeader(), CONSONANTS)]:
+                self.assertTrue(header.sectionsClickable())
+                for index, letter in enumerate(letters):
+                    header.sectionClicked.emit(index)
+                    play.assert_called_with([letter], 3)
+                    window.on_started(letter)
+                    self.assertEqual(window.syllable.text(), letter)
+                    window.replay()
+                    play.assert_called_with([letter], 3)
+            # 从字母回到原先同一个格子，也要恢复组合及重听目标。
+            window.play_cell(0, 0)
+            window.on_started("ба")
+            window.replay()
+            play.assert_called_with(["ба"], 3)
+            self.assertEqual(window.syllable.text(), "ба")
+        window.hide()
+        window.deleteLater()
+
+    def test_real_header_clicks(self):
+        with patch("russian_trainer.app.russian_engine", return_value=(None, [])):
+            window = TrainerWindow()
+        window.show()
+        APP.processEvents()
+        with patch.object(window.speaker, "play") as play:
+            horizontal = window.table.horizontalHeader()
+            QTest.mouseClick(horizontal.viewport(), Qt.MouseButton.LeftButton,
+                             pos=QPoint(horizontal.sectionSize(0) // 2, horizontal.height() // 2))
+            play.assert_called_with(["а"], 1)
+            vertical = window.table.verticalHeader()
+            QTest.mouseClick(vertical.viewport(), Qt.MouseButton.LeftButton,
+                             pos=QPoint(vertical.width() // 2, vertical.sectionSize(0) // 2))
+            play.assert_called_with(["б"], 1)
+            window.replay()
+            play.assert_called_with(["б"], 1)
+        window.hide()
+        window.deleteLater()
+
     def test_all_cells_accessible_and_bound_to_correct_text(self):
         with patch("russian_trainer.app.russian_engine", return_value=(None, [])):
             window = TrainerWindow()

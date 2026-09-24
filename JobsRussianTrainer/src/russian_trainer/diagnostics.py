@@ -10,8 +10,9 @@ def smoke_test():
     app.setStyleSheet(STYLE)
     window = TrainerWindow()
     window.show()
+    window.setEnabled(False)
     started = []
-    expected = ["ба", "ми", "шу"]
+    expected = ["а", "б", "ба"]
     window.speaker.started.connect(started.append)
     window.speaker.failed.connect(lambda message: (print(message, flush=True), app.exit(1)))
 
@@ -21,6 +22,16 @@ def smoke_test():
         app.exit(0 if success else 1)
 
     window.speaker.finished.connect(finished)
-    QTimer.singleShot(300, lambda: window.speaker.play(expected))
+    def next_item():
+        if len(started) == len(expected):
+            finished()
+        elif len(started) == 1:
+            window.table.verticalHeader().sectionClicked.emit(0)
+        else:
+            window.play_cell(0, 0)
+
+    window.speaker.finished.disconnect(finished)
+    window.speaker.finished.connect(next_item)
+    QTimer.singleShot(300, lambda: window.table.horizontalHeader().sectionClicked.emit(0))
     QTimer.singleShot(20000, lambda: app.exit(2))
     return app.exec()
