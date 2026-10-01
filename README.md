@@ -1,5 +1,7 @@
 # Jobs 俄语拼读表
 
+![Jobs出品，必属精品](https://picsum.photos/1500/400)
+
 [toc]
 
 ---

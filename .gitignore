@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.DS_Store
+
+# 打包产物快捷方式（本机生成）
+*.lnk
+*.app
+*.dmg
+*.zip
