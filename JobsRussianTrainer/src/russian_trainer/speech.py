@@ -1,4 +1,4 @@
-"""系统俄语语音与可取消的串行播放。"""
+"""系统语音与可取消的串行多语种播放。"""
 
 import sys
 from collections import deque
@@ -7,16 +7,27 @@ from PySide6.QtCore import QObject, QLocale, QTimer, Signal
 from PySide6.QtTextToSpeech import QTextToSpeech
 
 
-def russian_engine(parent: QObject):
-    """选择真实系统引擎，禁止退回英语或 mock 静默成功。"""
+LANGUAGE_NAMES = {
+    "ru-RU": "俄语",
+    "ar-SA": "阿拉伯语",
+    "fr-FR": "法语",
+    "es-ES": "西班牙语",
+    "ko-KR": "朝鲜语",
+    "de-DE": "德语",
+}
+
+
+def language_engine(parent: QObject, language: str):
+    """选择真实系统引擎与对应语种声音，不回退到其它语言。"""
     available = QTextToSpeech.availableEngines()
     preferred = ["darwin", "macos"] if sys.platform == "darwin" else ["winrt", "sapi"]
+    locale = QLocale(language.replace("-", "_"))
     for name in preferred:
         if name not in available:
             continue
         engine = QTextToSpeech(name, parent)
-        engine.setLocale(QLocale("ru_RU"))
-        voices = [v for v in engine.availableVoices() if v.locale().language() == QLocale.Language.Russian]
+        engine.setLocale(locale)
+        voices = [v for v in engine.availableVoices() if v.locale().language() == locale.language()]
         if voices and engine.state() != QTextToSpeech.State.Error:
             engine.setVoice(voices[0])
             return engine, voices
@@ -24,14 +35,19 @@ def russian_engine(parent: QObject):
     return None, []
 
 
+def russian_engine(parent: QObject):
+    return language_engine(parent, "ru-RU")
+
+
 class Speaker(QObject):
     started = Signal(str)
     finished = Signal()
     failed = Signal(str)
 
-    def __init__(self, engine, parent=None):
+    def __init__(self, engine, parent=None, language="ru-RU"):
         super().__init__(parent)
         self.engine = engine
+        self.language = language
         self.pending = deque()
         self.active = False
         self.timer = QTimer(self)
@@ -47,7 +63,8 @@ class Speaker(QObject):
     def play(self, syllables, repeats=1):
         self.stop()
         if not self.engine:
-            self.failed.emit("未找到俄语语音，请点击「语音帮助」，安装后重新打开应用。")
+            name = LANGUAGE_NAMES.get(self.language, self.language)
+            self.failed.emit(f"未找到{name}语音，请点击「语音帮助」，安装后重新打开应用。")
             return
         self.pending.extend(s for s in syllables for _ in range(repeats))
         # 等 stop 的平台回调完成，再启动最新请求，快速点击不会叠音。

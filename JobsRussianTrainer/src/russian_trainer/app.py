@@ -1,4 +1,4 @@
-"""Jobs · 俄语拼读表。"""
+"""Jobs · 多语种拼读表。"""
 
 import sys
 import random
@@ -12,8 +12,11 @@ from PySide6.QtWidgets import (
     QHeaderView, QAbstractItemView, QMessageBox,
 )
 
-from russian_trainer.data import VOWELS, CONSONANTS, SOFT_VOWELS, uncommon, note
-from russian_trainer.speech import Speaker, russian_engine
+from russian_trainer.data import (
+    COURSES, HANGUL_CODAS, SOFT_VOWELS, VOWELS, CONSONANTS,
+    RUSSIAN_COURSE, uncommon,
+)
+from russian_trainer.speech import Speaker, language_engine, russian_engine
 
 STYLE = """
 QWidget { color: #243651; }
@@ -25,6 +28,7 @@ QMainWindow, QWidget#root { background: #f4f6fa; color: #182944; }
 QLabel { color: #243651; }
 QLabel#title { font-size: 28px; font-weight: 700; }
 QLabel#subtitle { color: #6b7890; font-size: 13px; }
+QLabel#phonetic { color: #6b7890; font-size: 10px; }
 QLabel#syllable { color: #215bce; font-size: 52px; font-weight: 700; }
 QWidget#card { background: white; border-radius: 14px; }
 QPushButton { background: white; color: #254164; border: 1px solid #d5deeb;
@@ -59,22 +63,35 @@ class TrainerWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.settings = QSettings("Jobs", "RussianTrainer")
-        self.current_text = "ба"
-        self.setWindowTitle("Jobs · 俄语拼读表")
+        self.course = RUSSIAN_COURSE
+        saved_course = self.settings.value("language", "ru")
+        if saved_course in COURSES:
+            self.course = COURSES[saved_course]
+        self.current_coda = ""
+        self.current_text = self.course.syllable(self.course.consonants[0], self.course.vowels[0]) or ""
+        self.setWindowTitle(f"Jobs · {self.course.title}")
         self.resize(1120, 860)
         self.setMinimumSize(820, 600)
-        self.engine, self.voices = russian_engine(self)
-        self.speaker = Speaker(self.engine, self)
-        self.speaker.started.connect(self.on_started)
-        self.speaker.finished.connect(lambda: self.status.setText("播放完成 · 可以跟读，或按空格重听"))
-        self.speaker.failed.connect(self.on_error)
+        engine_factory = russian_engine if self.course.key == "ru" else language_engine
+        if self.course.key == "ru":
+            self.engine, self.voices = engine_factory(self)
+        else:
+            self.engine, self.voices = engine_factory(self, self.course.locale)
+        self.speaker = Speaker(self.engine, self, self.course.locale)
         self.root = QWidget(objectName="root")
         self.setCentralWidget(self.root)
         layout = QVBoxLayout(self.root)
         layout.setContentsMargins(26, 20, 26, 18)
         layout.setSpacing(12)
         titlebar = QHBoxLayout()
-        titlebar.addWidget(QLabel("俄语拼读表", objectName="title"))
+        self.title_label = QLabel(self.course.title, objectName="title")
+        titlebar.addWidget(self.title_label)
+        self.course_combo = QComboBox()
+        for course in COURSES.values():
+            self.course_combo.addItem(course.title, course.key)
+        self.course_combo.setCurrentIndex(max(0, self.course_combo.findData(self.course.key)))
+        self.course_combo.currentIndexChanged.connect(self.change_course)
+        titlebar.addWidget(self.course_combo)
         titlebar.addStretch()
         self.theme_combo = QComboBox()
         self.theme_combo.setAccessibleName("界面主题")
@@ -88,7 +105,8 @@ class TrainerWindow(QMainWindow):
         self.help_button.clicked.connect(self.show_help)
         titlebar.addWidget(self.help_button)
         layout.addLayout(titlebar)
-        layout.addWidget(QLabel("РУССКИЙ  /  点上方元音、左侧辅音或中间组合，即可朗读", objectName="subtitle"))
+        self.subtitle = QLabel(objectName="subtitle")
+        layout.addWidget(self.subtitle)
 
         self.card = QWidget(objectName="card")
         card_layout = QHBoxLayout(self.card)
@@ -99,73 +117,79 @@ class TrainerWindow(QMainWindow):
         details = QVBoxLayout()
         self.formula = QLabel("б + а")
         self.formula.setFont(QFont("", 15, QFont.Weight.Bold))
-        self.hint = QLabel(note("б", "а"))
+        self.transcription = QLabel()
+        self.transcription.setFont(QFont("", 13))
+        self.hint = QLabel(self.course.notice)
         self.hint.setWordWrap(True)
         details.addWidget(self.formula)
+        details.addWidget(self.transcription)
         details.addWidget(self.hint)
         card_layout.addLayout(details, 1)
         layout.addWidget(self.card)
 
         controls = QHBoxLayout()
-        controls.addWidget(QLabel("俄语声音"))
+        self.voice_label = QLabel(f"{self.course.title}声音")
+        controls.addWidget(self.voice_label)
         self.voice_combo = QComboBox()
-        self.voice_combo.addItems([v.name() for v in self.voices] or ["未安装俄语语音"])
+        self.voice_combo.addItems(
+            [voice.name() for voice in self.voices]
+            or [f"未安装{self.course.title}声音"]
+        )
         self.voice_combo.setEnabled(bool(self.voices))
-        saved_voice = self.settings.value("voice", "")
+        saved_voice = self.settings.value(self._setting_key("voice"), "")
         index = self.voice_combo.findText(saved_voice)
         if index >= 0:
             self.voice_combo.setCurrentIndex(index)
         self.voice_combo.currentIndexChanged.connect(self.change_voice)
         controls.addWidget(self.voice_combo)
         controls.addSpacing(14)
+        self.coda_label = QLabel("收音")
+        controls.addWidget(self.coda_label)
+        self.coda_combo = QComboBox()
+        for coda in HANGUL_CODAS:
+            self.coda_combo.addItem("无收音" if not coda else coda, coda)
+        self.coda_combo.setVisible(bool(self.course.codas))
+        self.coda_label.setVisible(bool(self.course.codas))
+        self.coda_combo.currentIndexChanged.connect(self.change_coda)
+        controls.addWidget(self.coda_combo)
+        controls.addSpacing(14)
         controls.addWidget(QLabel("语速"))
         self.rate_combo = QComboBox()
         for title, rate in [("慢速", -0.4), ("稍慢", -0.2), ("正常", 0.0)]:
             self.rate_combo.addItem(title, rate)
-        self.rate_combo.setCurrentIndex(max(0, min(2, self.settings.value("rate", 1, type=int))))
+        self.rate_combo.setCurrentIndex(max(0, min(2, self.settings.value(self._setting_key("rate"), 1, type=int))))
         self.rate_combo.currentIndexChanged.connect(self.change_rate)
         controls.addWidget(self.rate_combo)
         controls.addWidget(QLabel("重复"))
         self.repeat_combo = QComboBox()
         self.repeat_combo.addItems(["1 次", "2 次", "3 次"])
+        self.repeat_combo.setCurrentIndex(max(0, min(2, self.settings.value(self._setting_key("repeat"), 0, type=int))))
         controls.addWidget(self.repeat_combo)
         controls.addSpacing(14)
         controls.addWidget(QLabel("音量"))
         self.volume = QSlider(Qt.Orientation.Horizontal)
         self.volume.setRange(0, 100)
-        self.volume.setValue(max(0, min(100, self.settings.value("volume", 85, type=int))))
+        self.volume.setValue(max(0, min(100, self.settings.value(self._setting_key("volume"), 85, type=int))))
         self.volume.setMaximumWidth(110)
         self.volume.valueChanged.connect(self.change_volume)
         controls.addWidget(self.volume)
         controls.addStretch()
         layout.addLayout(controls)
 
-        self.table = QTableWidget(len(CONSONANTS), len(VOWELS))
-        self.table.setHorizontalHeaderLabels([v.upper() + " " + v for v in VOWELS])
-        self.table.setVerticalHeaderLabels([c.upper() + " " + c for c in CONSONANTS])
+        self.table = QTableWidget()
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.table.horizontalHeader().setMinimumSectionSize(57)
-        self.table.verticalHeader().setDefaultSectionSize(43)
+        self.table.horizontalHeader().setMinimumSectionSize(48)
+        self.table.horizontalHeader().setMinimumHeight(64)
+        self.table.verticalHeader().setDefaultSectionSize(64)
         for header in (self.table.horizontalHeader(), self.table.verticalHeader()):
             header.setSectionsClickable(True)
             header.viewport().setCursor(Qt.CursorShape.PointingHandCursor)
-        self.table.horizontalHeader().sectionClicked.connect(lambda col: self.play_letter(VOWELS[col]))
-        self.table.verticalHeader().sectionClicked.connect(lambda row: self.play_letter(CONSONANTS[row]))
-        for col, vowel in enumerate(VOWELS):
-            self.table.horizontalHeaderItem(col).setToolTip(f"点击朗读元音 {vowel}")
-        for row, consonant in enumerate(CONSONANTS):
-            self.table.verticalHeaderItem(row).setToolTip(f"点击朗读辅音字母 {consonant}")
+            header.setFont(QFont("", 26, QFont.Weight.Bold))
+        self.table.horizontalHeader().sectionClicked.connect(lambda col: self.play_letter(self.course.vowels[col]))
+        self.table.verticalHeader().sectionClicked.connect(lambda row: self.play_letter(self.course.consonants[row]))
         self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table.setFont(QFont("", 18))
-        for row, consonant in enumerate(CONSONANTS):
-            for col, vowel in enumerate(VOWELS):
-                rare = uncommon(consonant, vowel)
-                item = QTableWidgetItem(consonant + vowel + (" ·" if rare else ""))
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-                item.setToolTip(note(consonant, vowel))
-                item.setBackground(QColor("#fff4df" if rare else "#eef5ff" if vowel in SOFT_VOWELS else "#ffffff"))
-                self.table.setItem(row, col, item)
+        self.table.setFont(QFont("", 12))
         self.table.cellClicked.connect(self.play_cell)
         self.table.currentCellChanged.connect(self.selection_changed)
         layout.addWidget(self.table, 1)
@@ -186,7 +210,7 @@ class TrainerWindow(QMainWindow):
             actions.addWidget(button)
         actions.addStretch()
         layout.addLayout(actions)
-        self.status = QLabel("准备好了 · 点击任一格子开始" if self.engine else "未检测到俄语声音 · 请先查看「语音帮助」")
+        self.status = QLabel("准备好了 · 点击任一格子开始" if self.engine else f"未检测到{self.course.title}声音 · 请先查看「语音帮助」")
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
         self.shortcuts = []
@@ -194,6 +218,9 @@ class TrainerWindow(QMainWindow):
             shortcut = QShortcut(QKeySequence(key), self)
             shortcut.activated.connect(callback)
             self.shortcuts.append(shortcut)
+        self._connect_speaker()
+        self._update_course_labels()
+        self._rebuild_table()
         self.table.setCurrentCell(0, 0)
         self.change_voice()
         self.change_rate()
@@ -201,6 +228,170 @@ class TrainerWindow(QMainWindow):
         self._changing_theme = False
         QApplication.instance().styleHints().colorSchemeChanged.connect(self.system_theme_changed)
         self.change_theme()
+
+    def _setting_key(self, name):
+        return name if self.course.key == "ru" else f"{self.course.key}/{name}"
+
+    def _connect_speaker(self):
+        self.speaker.started.connect(self.on_started)
+        self.speaker.finished.connect(lambda: self.status.setText("播放完成 · 可以跟读，或按空格重听"))
+        self.speaker.failed.connect(self.on_error)
+
+    def _save_course_settings(self):
+        self.settings.setValue(self._setting_key("voice"), self.voice_combo.currentText())
+        self.settings.setValue(self._setting_key("rate"), self.rate_combo.currentIndex())
+        self.settings.setValue(self._setting_key("repeat"), self.repeat_combo.currentIndex())
+        self.settings.setValue(self._setting_key("volume"), self.volume.value())
+
+    def _update_course_labels(self):
+        self.setWindowTitle(f"Jobs · {self.course.title}")
+        self.title_label.setText(self.course.title)
+        self.voice_label.setText(f"{self.course.title}声音")
+        self.subtitle.setText(
+            f"{self.course.locale}  /  点上方元音、左侧辅音 / 声母或中间组合即可朗读"
+        )
+
+    def _rebuild_table(self):
+        self.table.setRowCount(len(self.course.consonants))
+        self.table.setColumnCount(len(self.course.vowels))
+        self.table.setHorizontalHeaderLabels([
+            self.course.display_vowel(v) for v in self.course.vowels
+        ])
+        self.table.setVerticalHeaderLabels(self.course.consonants)
+        for column, vowel in enumerate(self.course.vowels):
+            self.table.horizontalHeaderItem(column).setToolTip(
+                f"点击试听元音 {self.course.display_vowel(vowel)} · {self.course.pronunciation_hint_for_vowel(vowel)}"
+            )
+        for row, consonant in enumerate(self.course.consonants):
+            self.table.verticalHeaderItem(row).setToolTip(f"点击朗读辅音字母或声母 {consonant}")
+            for column, vowel in enumerate(self.course.vowels):
+                syllable = self.course.syllable(consonant, vowel, self.current_coda)
+                rare = self.course.is_rare(consonant) or (
+                    self.course.key == "ru" and uncommon(consonant, vowel)
+                )
+                label = syllable or "—"
+                display = label + (" ·" if rare and syllable else "")
+                annotation = (
+                    self.course.pronunciation_hint(consonant, vowel, self.current_coda)
+                    if syllable else ""
+                )
+                item = QTableWidgetItem("")
+                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                item.setToolTip(self.course.hint(consonant, vowel, self.current_coda))
+                if syllable is None:
+                    item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+                self.table.setItem(row, column, item)
+                self._set_table_cell(row, column, display, annotation)
+        self._paint_table(self._is_dark_theme())
+
+    def _set_table_cell(self, row, column, title, annotation):
+        container = QWidget()
+        container.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(1, 0, 1, 0)
+        layout.setSpacing(0)
+        glyph = QLabel(title)
+        glyph.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        glyph.setFont(QFont("", 25, QFont.Weight.Bold))
+        layout.addWidget(glyph)
+        if annotation:
+            note = QLabel(annotation, objectName="phonetic")
+            note.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            note.setWordWrap(True)
+            layout.addWidget(note)
+        self.table.setCellWidget(row, column, container)
+
+    def _is_dark_theme(self):
+        mode = self.theme_combo.currentData()
+        scheme = QApplication.instance().styleHints().colorScheme()
+        return mode == "dark" or (mode == "system" and scheme == Qt.ColorScheme.Dark)
+
+    def _paint_table(self, dark):
+        for row, consonant in enumerate(self.course.consonants):
+            for column, vowel in enumerate(self.course.vowels):
+                item = self.table.item(row, column)
+                if item is None:
+                    continue
+                rare = self.course.is_rare(consonant) or (
+                    self.course.key == "ru" and uncommon(consonant, vowel)
+                )
+                soft = self.course.key == "ru" and vowel in SOFT_VOWELS
+                color = (
+                    "#493c27" if rare else "#283e59" if soft else "#263244"
+                ) if dark else (
+                    "#fff4df" if rare else "#eef5ff" if soft else "#ffffff"
+                )
+                item.setBackground(QColor(color))
+        if self.course.key == "ru":
+            self.legend.setText(
+                ("深灰：通常配硬音　深蓝：通常配软音　棕黄 ·：少见组合" if dark else
+                 "白色：通常配硬音　浅蓝：通常配软音　浅黄 ·：少见组合") +
+                "　｜　ъ、ь 是符号，不列作辅音"
+            )
+        elif self.course.is_hangul:
+            self.legend.setText("ㅇ 作声母时不发音　｜　收音依拼写显示，实际读音随词中位置变化")
+        else:
+            self.legend.setText("· 外来词或少见字母组合　｜　拼写规则和地区读音见上方说明")
+        self.table.viewport().update()
+
+    def change_course(self, index):
+        if index < 0:
+            return
+        key = self.course_combo.itemData(index)
+        course = COURSES.get(key)
+        if course is None or course.key == self.course.key:
+            return
+        self._save_course_settings()
+        self.speaker.stop()
+        self.speaker.deleteLater()
+        if self.engine:
+            self.engine.stop()
+            self.engine.deleteLater()
+        self.course = course
+        self.current_coda = ""
+        self.current_text = course.syllable(course.consonants[0], course.vowels[0]) or ""
+        self.settings.setValue("language", course.key)
+        self.engine, self.voices = language_engine(self, course.locale)
+        self.speaker = Speaker(self.engine, self, course.locale)
+        self._connect_speaker()
+        self.voice_combo.blockSignals(True)
+        self.voice_combo.clear()
+        self.voice_combo.addItems([voice.name() for voice in self.voices] or [f"未安装{course.title}声音"])
+        saved_voice = self.settings.value(self._setting_key("voice"), "")
+        voice_index = self.voice_combo.findText(saved_voice)
+        if voice_index >= 0:
+            self.voice_combo.setCurrentIndex(voice_index)
+        self.voice_combo.setEnabled(bool(self.voices))
+        self.voice_combo.blockSignals(False)
+        self.rate_combo.setCurrentIndex(max(0, min(2, self.settings.value(self._setting_key("rate"), 1, type=int))))
+        self.repeat_combo.setCurrentIndex(max(0, min(2, self.settings.value(self._setting_key("repeat"), 0, type=int))))
+        self.volume.setValue(max(0, min(100, self.settings.value(self._setting_key("volume"), 85, type=int))))
+        self.coda_combo.blockSignals(True)
+        self.coda_combo.setCurrentIndex(0)
+        self.coda_combo.setVisible(bool(course.codas))
+        self.coda_label.setVisible(bool(course.codas))
+        self.coda_combo.blockSignals(False)
+        self._update_course_labels()
+        self.status.setText(
+            "准备好了 · 点击任一格子开始"
+            if self.engine
+            else f"未检测到{self.course.title}声音 · 请先查看「语音帮助」"
+        )
+        self._rebuild_table()
+        self.table.setCurrentCell(0, 0)
+        self.change_voice()
+        self.change_rate()
+        self.change_volume()
+        self._paint_table(self._is_dark_theme())
+
+    def change_coda(self, index):
+        if index < 0 or not self.course.is_hangul:
+            return
+        self.current_coda = self.coda_combo.itemData(index)
+        self._rebuild_table()
+        row = max(0, self.table.currentRow())
+        column = max(0, self.table.currentColumn())
+        self.table.setCurrentCell(row, column)
 
     def change_theme(self, *_):
         mode = self.theme_combo.currentData()
@@ -245,51 +436,79 @@ class TrainerWindow(QMainWindow):
             # 高亮与主按钮仍使用白字，避免跟随普通表面的颜色替换。
             style += "QPushButton#primary { color: #ffffff; } QTableWidget { selection-color: #ffffff; }"
         app.setStyleSheet(style)
-        for row, consonant in enumerate(CONSONANTS):
-            for col, vowel in enumerate(VOWELS):
-                rare = uncommon(consonant, vowel)
-                color = (("#493c27" if rare else "#283e59" if vowel in SOFT_VOWELS else "#263244")
-                         if dark else ("#fff4df" if rare else "#eef5ff" if vowel in SOFT_VOWELS else "#ffffff"))
-                self.table.item(row, col).setBackground(QColor(color))
-        self.legend.setText(("深灰：通常配硬音　深蓝：通常配软音　棕黄 ·：少见组合" if dark else
-                             "白色：通常配硬音　浅蓝：通常配软音　浅黄 ·：少见组合") +
-                            "　｜　ъ、ь 是符号，不列作辅音")
-        self.table.viewport().update()
+        self._paint_table(dark)
 
     def selection_changed(self, row, col, *_):
         if row < 0 or col < 0:
             return
-        c, v = CONSONANTS[row], VOWELS[col]
-        self.current_text = c + v
-        self.syllable.setText(c + v)
-        self.formula.setText(f"{c} + {v}")
-        self.hint.setText(note(c, v))
+        if row >= len(self.course.consonants) or col >= len(self.course.vowels):
+            return
+        consonant = self.course.consonants[row]
+        vowel = self.course.vowels[col]
+        syllable = self.course.syllable(consonant, vowel, self.current_coda)
+        self.current_text = syllable or ""
+        self.syllable.setText(syllable or "—")
+        coda_text = f" + {self.current_coda}" if self.current_coda else ""
+        self.formula.setText(f"{consonant} + {self.course.display_vowel(vowel)}{coda_text}")
+        self.transcription.setText(self.course.pronunciation_hint(consonant, vowel, self.current_coda))
+        self.hint.setText(self.course.hint(consonant, vowel, self.current_coda))
 
     def play_cell(self, row, col):
         self.selection_changed(row, col)
-        self.speaker.play([CONSONANTS[row] + VOWELS[col]], self.repeat_combo.currentIndex() + 1)
+        if self.current_text:
+            self.speaker.play([self.current_text], self.repeat_combo.currentIndex() + 1)
 
     def show_letter(self, letter):
         self.current_text = letter
         self.table.clearSelection()
         self.syllable.setText(letter)
-        self.formula.setText(("元音字母" if letter in VOWELS else "辅音字母") + f" · {letter.upper()} {letter}")
-        self.hint.setText("单字母试听 · 系统可能按字母名称朗读；辅音字母名称与纯辅音音素不同。")
+        kind = "元音" if letter in self.course.vowels else "辅音字母 / 声母"
+        display = self.course.display_vowel(letter) if letter in self.course.vowels else letter
+        self.formula.setText(f"{kind} · {display}")
+        if letter in self.course.vowels:
+            self.transcription.setText(self.course.pronunciation_hint_for_vowel(letter))
+        elif letter in self.course.consonants:
+            self.transcription.setText(self.course.pronunciation_hint_for_consonant(letter))
+        else:
+            self.transcription.clear()
+        self.hint.setText(
+            "单个字母试听 · 系统可能读出字母名称；辅音字母名称不等于纯辅音音素。"
+        )
 
     def play_letter(self, letter):
         self.show_letter(letter)
-        self.speaker.play([letter], self.repeat_combo.currentIndex() + 1)
+        speech_text = (
+            self.course.syllable("ء", letter) or letter
+            if self.course.key == "ar" and letter in self.course.vowels
+            else letter
+        )
+        self.speaker.play([speech_text], self.repeat_combo.currentIndex() + 1)
 
     def replay(self):
-        self.speaker.play([self.current_text], self.repeat_combo.currentIndex() + 1)
+        if self.current_text:
+            self.speaker.play([self.current_text], self.repeat_combo.currentIndex() + 1)
 
     def play_row(self):
-        consonant = CONSONANTS[self.table.currentRow()]
-        self.speaker.play([consonant + v for v in VOWELS], self.repeat_combo.currentIndex() + 1)
+        row = max(0, self.table.currentRow())
+        consonant = self.course.consonants[row]
+        syllables = [
+            syllable
+            for vowel in self.course.vowels
+            if (syllable := self.course.syllable(consonant, vowel, self.current_coda))
+        ]
+        self.speaker.play(syllables, self.repeat_combo.currentIndex() + 1)
 
     def play_random(self):
-        choices = [(r, c) for r, consonant in enumerate(CONSONANTS)
-                   for c, vowel in enumerate(VOWELS) if not uncommon(consonant, vowel)]
+        choices = [
+            (row, column)
+            for row, consonant in enumerate(self.course.consonants)
+            for column, vowel in enumerate(self.course.vowels)
+            if self.course.syllable(consonant, vowel, self.current_coda)
+            and not self.course.is_rare(consonant)
+            and not (self.course.key == "ru" and uncommon(consonant, vowel))
+        ]
+        if not choices:
+            return
         row, col = random.choice(choices)
         self.table.setCurrentCell(row, col)
         self.play_cell(row, col)
@@ -299,23 +518,27 @@ class TrainerWindow(QMainWindow):
         self.status.setText("已停止 · 点击格子重新播放")
 
     def on_started(self, syllable):
-        if len(syllable) == 1:
+        if syllable in self.course.vowels or syllable in self.course.consonants:
             self.show_letter(syllable)
         else:
-            row, col = CONSONANTS.index(syllable[0]), VOWELS.index(syllable[1])
-            self.table.setCurrentCell(row, col)
-            self.table.item(row, col).setSelected(True)
-            self.selection_changed(row, col)
-            self.table.scrollToItem(self.table.item(row, col))
+            for row, consonant in enumerate(self.course.consonants):
+                for column, vowel in enumerate(self.course.vowels):
+                    if self.course.syllable(consonant, vowel, self.current_coda) == syllable:
+                        self.table.setCurrentCell(row, column)
+                        self.table.item(row, column).setSelected(True)
+                        self.selection_changed(row, column)
+                        self.table.scrollToItem(self.table.item(row, column))
+                        break
         self.status.setText(f"正在朗读：{syllable} · 跟着声音练习")
 
     def on_error(self, message):
         self.status.setText("发音失败：" + message)
 
     def change_voice(self, *_):
-        if self.engine:
+        index = self.voice_combo.currentIndex()
+        if self.engine and 0 <= index < len(self.voices):
             self.speaker.stop()
-            self.engine.setVoice(self.voices[self.voice_combo.currentIndex()])
+            self.engine.setVoice(self.voices[index])
 
     def change_rate(self, *_):
         if self.engine:
@@ -326,23 +549,22 @@ class TrainerWindow(QMainWindow):
             self.engine.setVolume(self.volume.value() / 100)
 
     def show_help(self):
-        QMessageBox.information(self, "俄语声音与学习说明",
-            "本应用离线调用系统俄语语音，不上传内容。\n\n"
-            "点击顶部元音或左侧辅音，可单独朗读字母；重复、语速和重听同样适用。"
-            "单字母可能按字母名称朗读，不等同于纯辅音音素。\n\n"
-            "macOS：系统设置 → 辅助功能 → 朗读相关设置 → 系统声音，添加俄语 Milena。\n"
-            "Windows：设置 → 时间和语言 → 语言和区域，添加俄语并安装语音组件；安装后重启应用。"
-            "如果声音仍未列出，请检查系统语音设置中是否存在俄语声音。\n\n"
-            "每个格子都是‘辅音字母 + 元音字母’。浅黄格属于少见或非典型拼写，仍可试听。"
-            "系统 TTS 不是专业音素引擎，孤立组合可能被读作字母名；音节并不等于完整词语，"
-            "重音、弱化、软硬音和外来词例外需要结合教材学习。\n\n"
-            "空格 / 回车：重听；方向键：选格；Esc：停止。快速点新格会取消之前的朗读。")
+        QMessageBox.information(
+            self,
+            f"{self.course.title}声音与学习说明",
+            f"本应用离线调用系统{self.course.title}语音，不上传内容。\n\n"
+            "点击顶部元音或左侧辅音 / 声母，可单独朗读；也可点击表格组合。"
+            "单个字母可能按字母名称朗读，不等同于纯辅音音素。\n\n"
+            f"{self.course.notice}\n\n"
+            "如果声音不可用，请到系统语音设置安装对应语言声音后重新打开应用。"
+            "系统 TTS 不是经教师逐项审校的音素录音；实际单词还可能受拼写位置、重音、"
+            "连音、音变或地区发音影响。\n\n"
+            "空格 / 回车：重听；方向键：选格；Esc：停止。快速点新格会取消之前的朗读。",
+        )
 
     def closeEvent(self, event):
         self.speaker.stop()
-        self.settings.setValue("voice", self.voice_combo.currentText())
-        self.settings.setValue("rate", self.rate_combo.currentIndex())
-        self.settings.setValue("volume", self.volume.value())
+        self._save_course_settings()
         super().closeEvent(event)
 
 
