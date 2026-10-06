@@ -261,7 +261,8 @@ class SyllableCourse:
                 sound_sequence = f"{initial} {vowel_ipa}"
             else:
                 sound_sequence = f"{initial}{vowel_ipa}"
-            return f"{consonant}{vowel} /{sound_sequence}/"
+            spelling = self.syllable(consonant, vowel) or f"{consonant}{vowel}"
+            return f"{spelling} /{sound_sequence}/"
         return ""
 
     def hint(self, consonant: str, vowel: str, coda: str = "") -> str:

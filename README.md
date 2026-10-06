@@ -87,7 +87,7 @@ PYTHONPATH=src python3 -m unittest discover -s tests -v
 python3 -m compileall -q src scripts tests
 ```
 
-2026-10-04 德语及拼读字形层级修改后，`python3 -m compileall -q src scripts` 通过；本轮未运行 UI 或设备语音验证。
+2026-10-04 德语及拼读字形层级通过 `python3 -m compileall -q src scripts`；2026-10-05 德语 `qu` 注音拼写修正通过课程文件 `compileall`。未运行 UI 或设备语音验证，旧成品未重新打包。
 
 Windows 测试先执行 `set PYTHONPATH=src`，再使用 `py -3 -m unittest discover -s tests -v`。Windows 产物需在 Windows 上实际构建并验证声音，不能以 macOS 检查代替。
 

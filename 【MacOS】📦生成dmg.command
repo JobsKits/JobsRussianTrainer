@@ -4,14 +4,37 @@
 # shell: zsh
 
 # 展示固定说明并确认运行。
+# 仅渲染自述：标题红色加粗，编号正文蓝色常规字重；非彩色终端输出纯文本。
+jobs_intro_style() {
+  local intro_color=0
+  if [ -t 1 ] && [ -n "${TERM:-}" ] && [ "${TERM:-}" != dumb ] &&
+     [ -z "${NO_COLOR+x}" ] && [ "${PLAIN_OUTPUT:-0}" != 1 ] &&
+     [ "${IS_SOURCETREE_RUNTIME:-0}" != 1 ]; then
+    intro_color=1
+  fi
+  /usr/bin/awk -v color="$intro_color" -v role="${1:-body}" '
+    BEGIN { esc = sprintf("%c", 27) }
+    {
+      gsub(esc "\\[[0-9;]*m", "")
+      gsub(/\\(033|e|x1[bB])\[[0-9;]*m/, "")
+      if (!color || $0 ~ /^[[:space:]]*$/) { print; next }
+      numbered = ($0 ~ /^[[:space:]➤ℹ🔹✔⚠]*([0-9]+[、.)）]|[0-9]+️⃣|[-•])/)
+      heading = ($0 ~ /^[[:space:]]*#{1,6}[[:space:]]/ || $0 ~ /[：:][[:space:]]*$/ || $0 ~ /^[[:space:]]*[=━─-]{3}/)
+      title = (!numbered && (role == "title" || heading))
+      if (role == "auto" && !seen && !numbered) title = 1
+      if ($0 !~ /^[[:space:]]*[=━─-]+[[:space:]]*$/) seen = 1
+      printf "%s%s%s\n", esc (title ? "[1;31m" : "[0;34m"), $0, esc "[0m"
+    }
+  '
+}
 show_script_intro_and_wait() {
-    print 'Jobs 俄语拼读表 · macOS 打包'
-    print '用途：在本机生成包含 Python 和 Qt 的 .app / .dmg。'
-    print '影响：工程 .venv / build / dist；缺依赖时联网安装，不升级健康环境。'
-    print '日志：系统临时目录 JobsRussianTrainer-build.log；Ctrl+C 可取消。'
+    print 'Jobs 俄语拼读表 · macOS 打包' | jobs_intro_style body
+    print '用途：在本机生成包含 Python 和 Qt 的 .app / .dmg。' | jobs_intro_style body
+    print '影响：工程 .venv / build / dist；缺依赖时联网安装，不升级健康环境。' | jobs_intro_style body
+    print '日志：系统临时目录 JobsRussianTrainer-build.log；Ctrl+C 可取消。' | jobs_intro_style body
     [[ -t 0 ]] || { print '请在终端中运行。'; exit 1; }
-    print '构建产物按本机年月日时分秒保存到 dist/YYYY.MM.DD HH-mm-ss/（例如 2020.06.04 12-23-21），同次构建共用一个时间目录。'
-    print '打包前清理旧 dist；成功后在第一层更新产物快捷方式、打开目录并启动本机软件。'
+    print '构建产物按本机年月日时分秒保存到 dist/YYYY.MM.DD HH-mm-ss/（例如 2020.06.04 12-23-21），同次构建共用一个时间目录。' | jobs_intro_style body
+    print '打包前清理旧 dist；成功后在第一层更新产物快捷方式、打开目录并启动本机软件。' | jobs_intro_style body
     read -r '?按回车继续：' _
 }
 # 初始化路径及失败时保留终端。
