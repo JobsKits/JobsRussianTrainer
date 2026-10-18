@@ -2,7 +2,21 @@
 
 ![Jobs出品，必属精品](https://picsum.photos/1500/400)
 
-[toc]
+<!-- jobs-toc:start -->
+<!-- jobs-toc:source {"v":2,"token":"[toc]"} -->
+<details>
+<summary>📚 目录（点击展开 / 收起）</summary>
+
+- [🔥 前言](#jobs-toc-heading-1)
+- [一、使用方法](#jobs-toc-heading-2)
+- [二、运行与系统声音](#jobs-toc-heading-3)
+- [三、打包](#jobs-toc-heading-4)
+- [四、工程结构](#jobs-toc-heading-5)
+- [五、验证与参考](#jobs-toc-heading-6)
+- [六、常见问题](#jobs-toc-heading-7)
+
+</details>
+<!-- jobs-toc:end -->
 
 ---
 
@@ -10,11 +24,11 @@
 
 https://github.com/user-attachments/assets/1ed73e9d-b8b2-499f-978c-f9d476dc0b0d
 
-## 🔥 <font id=前言>前言</font>
+## <span id="jobs-toc-heading-1" data-jobs-toc="v2">🔥 <font id=前言>前言</font></span><!-- jobs-toc:heading-end -->
 
 使用 [**Python**](https://www.python.org/) 和 [**PySide6**](https://doc.qt.io/qtforpython-6/) 编写的离线桌面拼读工具，支持俄语、阿拉伯语、法语、西班牙语、朝鲜语和德语。课程数据、注音矩阵和系统语音会随顶部语种选择切换。
 
-## 一、使用方法 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-2" data-jobs-toc="v2">一、使用方法 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 - 点击格子：朗读当前语种的拼读组合；快速点击新格会取消上一项。
 - 点击顶部元音或左侧辅音 / 声母：单独朗读对应字母；同样支持语速、重复与音量设置。系统可能使用字母名称朗读，辅音字母名称不等同于纯辅音音素。
@@ -31,7 +45,7 @@ https://github.com/user-attachments/assets/1ed73e9d-b8b2-499f-978c-f9d476dc0b0d
 - 俄语矩阵以颜色区分硬 / 软音和少见组合；随机练习避开少见组合。韩语 `ㅇ` 作声母时不发音，收音在实际词语中可能发生连音与音变。
 - 拼写组合可试听，但不代表所有排列都是常用音节。系统 TTS 可能读出字母名称；本工具不提供经教师逐项审校的音素录音，不替代教材。
 
-## 二、运行与系统声音 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、运行与系统声音 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 仓库现有 Apple Silicon Mac `.app` / `.dmg` 是旧构建产物，不包含新增的阿拉伯语、法语、西班牙语、朝鲜语和德语入口；运行新增课程请按上文源码入口启动，或在目标平台重新打包。Windows 使用源码工程在本机打包。
 
@@ -49,7 +63,7 @@ python3 ./JobsRussianTrainer/scripts/manage.py run
 
 Windows 将 `python3` 改为 `py -3`。构建／开发环境需要 Python 3.11–3.14。管理入口先展示说明并确认，仅在依赖缺失时安装到工程 `.venv`，不会修改全局 Python。
 
-## 三、打包 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-4" data-jobs-toc="v2">三、打包 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 | 入口 | 平台与用途 | 产物 |
 | --- | --- | --- |
@@ -60,7 +74,7 @@ Windows 将 `python3` 改为 `py -3`。构建／开发环境需要 Python 3.11�
 
 首次构建需要网络安装缺失依赖；正常使用发音不需要网络。日志追加保存在系统临时目录的 `JobsRussianTrainer-build.log`。Mac 入口只修改本项目环境与产物；不使用 sudo，不修改系统语音设置。应用未进行开发者证书签名或公证，公开分发前需自行配置。
 
-## 四、工程结构 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-5" data-jobs-toc="v2">四、工程结构 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 ```text
 JobsRussianTrainer.py/
@@ -79,7 +93,7 @@ JobsRussianTrainer.py/
     └── tests/
 ```
 
-## 五、验证与参考 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-6" data-jobs-toc="v2">五、验证与参考 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 ```sh
 cd ./JobsRussianTrainer
@@ -95,7 +109,7 @@ Windows 测试先执行 `set PYTHONPATH=src`，再使用 `py -3 -m unittest disc
 
 参考：[康奈尔大学俄语字母与发音](https://russian.cornell.edu/russian.web/courses/305/letters_sounds_1.htm)、[沙迦大学阿拉伯语罗马转写工具](https://romanization.sharjah.ac.ae/firstpageView/)、[国际音标表](https://www.internationalphoneticassociation.org/content/ipa-chart)、[法国教育部法语音素表](https://www.education.gouv.fr/media/199500/download)、[西班牙皇家学院字母与拼写说明](https://www.rae.es/diccionario-estudiante/docs/ortografia.pdf)、[韩国国立国语院修订罗马字](https://www.korean.go.kr/front_eng/roman/roman_01.do)、[Qt 系统语音引擎](https://doc.qt.io/qt-6.5/qttexttospeech-engines.html)。
 
-## 六、常见问题 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-7" data-jobs-toc="v2">六、常见问题 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 **点击没有声音？** 先检查系统输出设备、系统与应用音量；查看窗口底部错误，再检查当前课程对应的语音包。安装后重新打开应用。
 
